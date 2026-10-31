@@ -7,9 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <ctype.h>
 
 #define MAX_LINHA 256
+#define MAX_CAMINHO 200
+#define MAX_REGISTROS 1000000L
 #define NUM_ALGORITMOS 6
 
 /* Registro catalogado de uma imagem de satelite */
@@ -192,6 +193,7 @@ Imagem *ler_arquivo(const char *caminho, long *n) {
     if (!f) { fprintf(stderr, "Erro: nao foi possivel abrir '%s'.\n", caminho); return NULL; }
     long cap = 1024, cont = 0;
     Imagem *v = (Imagem *) malloc(cap * sizeof(Imagem));
+    if (!v) { fprintf(stderr, "Erro: memoria insuficiente.\n"); fclose(f); return NULL; }
     char linha[MAX_LINHA];
     int num_linha = 0;
     while (fgets(linha, sizeof linha, f)) {
@@ -211,6 +213,11 @@ Imagem *ler_arquivo(const char *caminho, long *n) {
         v[cont++] = im;
     }
     fclose(f);
+    if (cont == 0) { /* nada aproveitavel: mantem os dados anteriores */
+        fprintf(stderr, "Nenhum registro valido no arquivo.\n");
+        free(v);
+        return NULL;
+    }
     *n = cont;
     return v;
 }
@@ -228,8 +235,12 @@ int salvar_arquivo(const char *caminho, const Imagem *v, long n) {
 Imagem *ler_usuario(long *n) {
     long qtd;
     printf("Quantidade de registros a digitar: ");
-    if (scanf("%ld", &qtd) != 1 || qtd <= 0) { fprintf(stderr, "Quantidade invalida.\n"); return NULL; }
+    if (scanf("%ld", &qtd) != 1 || qtd < 1 || qtd > MAX_REGISTROS) {
+        fprintf(stderr, "Quantidade invalida (entre 1 e %ld).\n", MAX_REGISTROS);
+        return NULL;
+    }
     Imagem *v = (Imagem *) malloc(qtd * sizeof(Imagem));
+    if (!v) { fprintf(stderr, "Erro: memoria insuficiente.\n"); return NULL; }
     for (long i = 0; i < qtd; i++) {
         printf("Registro %ld - id timestamp latitude longitude nuvens: ", i + 1);
         if (scanf("%ld %ld %lf %lf %d", &v[i].id, &v[i].timestamp, &v[i].latitude, &v[i].longitude, &v[i].nuvens) != 5) {
@@ -290,7 +301,6 @@ void benchmark(const char *saida) {
             long n = tamanhos[t];
             Imagem *base = gerar_dados(n, c);
             for (int a = 0; a < NUM_ALGORITMOS; a++) {
-                /* algoritmos O(n^2) limitados a 50k para tempo razoavel */
                 double soma = 0; int rep = 3;
                 for (int r = 0; r < rep; r++) {
                     Imagem *cp = copiar_vetor(base, n);
@@ -309,14 +319,36 @@ void benchmark(const char *saida) {
 }
 
 /* ---------- Menu ---------- */
+/* descarta o resto da linha atual do stdin (para em EOF) */
+static void descartar_linha(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
+
+/* retorna -1 em fim de entrada (EOF) */
 static long ler_long(const char *msg, long min, long max) {
     long x; char buf[64];
     for (;;) {
         printf("%s", msg);
-        if (!fgets(buf, sizeof buf, stdin)) exit(0);
+        if (!fgets(buf, sizeof buf, stdin)) return -1;
+        if (!strchr(buf, '\n')) descartar_linha(); /* linha maior que o buffer */
         if (sscanf(buf, "%ld", &x) == 1 && x >= min && x <= max) return x;
         printf("Valor invalido (entre %ld e %ld).\n", min, max);
     }
+}
+
+/* le um caminho com fgets (aceita espacos); retorna 0 se vazio, longo demais ou EOF */
+static int ler_caminho(const char *msg, char *caminho, size_t tam) {
+    printf("%s", msg);
+    if (!fgets(caminho, (int) tam, stdin)) return 0;
+    if (!strchr(caminho, '\n') && !feof(stdin)) {
+        descartar_linha();
+        fprintf(stderr, "Caminho muito longo (max %d caracteres).\n", (int) tam - 2);
+        return 0;
+    }
+    caminho[strcspn(caminho, "\r\n")] = '\0';
+    if (caminho[0] == '\0') { fprintf(stderr, "Caminho vazio.\n"); return 0; }
+    return 1;
 }
 
 int main(int argc, char **argv) {
@@ -333,25 +365,27 @@ int main(int argc, char **argv) {
         printf("4) Gerar dados semi-ordenados\n5) Carregar de arquivo texto\n6) Digitar dados manualmente\n");
         printf("7) Salvar dados atuais em arquivo\n8) Listar dados atuais\n9) Executar comparacao de ordenacao\n0) Sair\n");
         long op = ler_long("Opcao: ", 0, 9);
-        if (op == 0) break;
+        if (op <= 0) break; /* 0 ou EOF */
+        /* novos dados so substituem os atuais apos sucesso (sem vazamento) */
         if (op >= 1 && op <= 4) {
-            long q = ler_long("Quantidade de registros (1 a 1000000): ", 1, 1000000);
-            free(dados); dados = gerar_dados(q, (int)(op - 1)); n = q;
+            long q = ler_long("Quantidade de registros (1 a 1000000): ", 1, MAX_REGISTROS);
+            if (q < 0) break;
+            Imagem *v = gerar_dados(q, (int)(op - 1));
+            free(dados); dados = v; n = q;
             printf("%ld registros gerados.\n", n);
         } else if (op == 5) {
-            char caminho[200]; printf("Caminho do arquivo: ");
-            if (scanf("%199s", caminho) != 1) continue;
-            while (getchar() != '\n');
-            long m; Imagem *v = ler_arquivo(caminho, &m);
+            char caminho[MAX_CAMINHO];
+            if (!ler_caminho("Caminho do arquivo: ", caminho, sizeof caminho)) continue;
+            long m = 0; Imagem *v = ler_arquivo(caminho, &m);
             if (v) { free(dados); dados = v; n = m; printf("%ld registros carregados.\n", n); }
         } else if (op == 6) {
-            long m; Imagem *v = ler_usuario(&m); while (getchar() != '\n');
+            long m = 0; Imagem *v = ler_usuario(&m);
+            descartar_linha();
             if (v) { free(dados); dados = v; n = m; }
         } else if (op == 7) {
             if (!dados) { printf("Nenhum dado carregado.\n"); continue; }
-            char caminho[200]; printf("Nome do arquivo de saida: ");
-            if (scanf("%199s", caminho) != 1) continue;
-            while (getchar() != '\n');
+            char caminho[MAX_CAMINHO];
+            if (!ler_caminho("Nome do arquivo de saida: ", caminho, sizeof caminho)) continue;
             if (salvar_arquivo(caminho, dados, n)) printf("Arquivo salvo.\n");
         } else if (op == 8) {
             if (!dados) { printf("Nenhum dado carregado.\n"); continue; }
