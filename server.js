@@ -18,6 +18,10 @@ const PASTA_PUBLIC = path.join(RAIZ, 'public');
 const BINARIO = path.join(RAIZ, process.platform === 'win32' ? 'geosort.exe' : 'geosort');
 const RESULTADOS = path.join(RAIZ, 'resultados.csv');
 const TEMPORARIO = path.join(RAIZ, 'resultados.tmp.csv');
+/* resultado versionado no repositorio, usado enquanto nao houver resultados.csv */
+const RESULTADOS_PADRAO = path.join(RAIZ, 'resultados_benchmark.csv');
+/* online o benchmark pode ser desligado: PERMITIR_BENCHMARK=nao */
+const PERMITIR_BENCHMARK = process.env.PERMITIR_BENCHMARK !== 'nao';
 const TOTAL_MEDICOES = 4 * 5 * 6; /* cenarios x tamanhos x algoritmos */
 
 /* opcao do menu de cada cenario (1 a 4 em geosort.c) */
@@ -74,11 +78,17 @@ function lerCorpo(req) {
   });
 }
 
+function arquivoResultados() {
+  if (fs.existsSync(RESULTADOS)) return RESULTADOS;
+  return fs.existsSync(RESULTADOS_PADRAO) ? RESULTADOS_PADRAO : null;
+}
+
 /* GET /api/status */
 function status(res) {
   json(res, 200, {
     binario: fs.existsSync(BINARIO),
-    resultados: fs.existsSync(RESULTADOS),
+    resultados: Boolean(arquivoResultados()),
+    benchmark: PERMITIR_BENCHMARK,
     rodando: Boolean(execucao),
     tarefa: execucao ? execucao.tipo : null,
     total: TOTAL_MEDICOES,
@@ -91,6 +101,7 @@ function status(res) {
  * Se o cliente cancelar a requisicao, o processo e encerrado.
  */
 function benchmark(req, res) {
+  if (!PERMITIR_BENCHMARK) return json(res, 403, { erro: 'O benchmark esta desativado nesta versao online.' });
   if (execucao) return json(res, 409, { erro: 'O programa ja esta em execucao. Aguarde terminar.' });
   if (!fs.existsSync(BINARIO)) return json(res, 500, { erro: 'Binario nao encontrado. Rode "yarn build".' });
 
@@ -273,7 +284,7 @@ const servidor = http.createServer((req, res) => {
   if (rota === '/api/benchmark' && req.method === 'POST') return benchmark(req, res);
   if (rota === '/api/cenario' && req.method === 'POST') return cenario(req, res);
   if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
-  if (rota === '/resultados.csv') return enviarArquivo(res, RESULTADOS);
+  if (rota === '/resultados.csv') return enviarArquivo(res, arquivoResultados() || RESULTADOS);
   if (rota.startsWith('/public/')) return enviarEstatico(res, PASTA_PUBLIC, rota.slice('/public/'.length));
   if (rota === '/favicon.ico') return enviarArquivo(res, path.join(PASTA_PUBLIC, 'favicon.png'));
   enviarEstatico(res, PASTA_FRONT, rota === '/' ? 'index.html' : rota);
@@ -283,7 +294,8 @@ servidor.listen(PORTA, () => {
   console.log('');
   console.log('  GeoSort rodando em  http://localhost:' + PORTA);
   if (!fs.existsSync(BINARIO)) console.log('  Aviso: binario nao encontrado, rode "yarn build".');
-  if (!fs.existsSync(RESULTADOS)) console.log('  Ainda sem resultados.csv: use o botao "Rodar benchmark" no painel.');
+  if (!arquivoResultados()) console.log('  Ainda sem resultados.csv: use o botao "Rodar benchmark" no painel.');
+  if (!PERMITIR_BENCHMARK) console.log('  Benchmark desativado (PERMITIR_BENCHMARK=nao).');
   console.log('  Ctrl+C para encerrar.');
   console.log('');
 });

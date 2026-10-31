@@ -525,8 +525,10 @@
       if (!r.ok) throw new Error();
       return r.json();
     }).then(function (st) {
-      $('rodar').hidden = false;
-      $('dica-comando').textContent = 'botão "Rodar benchmark" acima';
+      if (st.benchmark !== false) {
+        $('rodar').hidden = false;
+        $('dica-comando').textContent = 'botão "Rodar benchmark" acima';
+      }
       if (st.rodando) {
         $('rodar').disabled = true;
         $('rodar').title = 'Já existe um benchmark em execução';
