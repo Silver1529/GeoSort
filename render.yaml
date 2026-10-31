@@ -1,0 +1,10 @@
+# GeoSort no Render (plano gratuito, a partir do Dockerfile)
+services:
+  - type: web
+    name: geosort
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: PERMITIR_BENCHMARK
+        value: "nao"
