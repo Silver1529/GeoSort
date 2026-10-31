@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GeoSort · Painel de Desempenho</title>
+  <link rel="icon" type="image/png" href="../public/favicon.png">
+  <link rel="apple-touch-icon" href="../public/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="#inicio" aria-label="GeoSort - início">
+      <img class="so-claro" src="../public/marca-claro.png" alt="GeoSort" height="34">
+      <img class="so-escuro" src="../public/marca-escuro.png" alt="GeoSort" height="34">
+    </a>
+    <nav class="menu" aria-label="Seções">
+      <a href="#laboratorio">Laboratório</a>
+      <a href="#benchmark">Benchmark</a>
+    </nav>
+    <div class="acoes">
+      <button class="botao fantasma texto" id="como-funciona" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg>
+        <span>Como funciona</span>
+      </button>
+      <button class="botao destaque" id="rodar" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg>
+        <span>Rodar benchmark</span>
+      </button>
+      <label class="botao" for="arquivo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+        <span>Abrir CSV</span>
+      </label>
+      <input type="file" id="arquivo" accept=".csv,text/csv" hidden>
+      <button class="botao fantasma" id="tema" type="button" aria-label="Alternar tema claro/escuro">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- banner de abertura -->
+    <section class="hero" id="inicio">
+      <div class="hero-texto">
+        <span class="etiqueta">APS · Estrutura de Dados · UNIP</span>
+        <h1>Qual algoritmo organiza mais rápido o catálogo de imagens da&nbsp;Amazônia?</h1>
+        <p>Seis algoritmos de ordenação disputam quem coloca em ordem cronológica milhares de imagens de satélite da floresta, em quatro cenários diferentes.</p>
+        <div class="hero-acoes">
+          <a class="botao claro" href="#laboratorio" id="hero-gerar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg>
+            Gerar cenários
+          </a>
+          <a class="botao contorno" href="#benchmark">Ver benchmark</a>
+        </div>
+      </div>
+      <div class="hero-arte" aria-hidden="true">
+        <span class="orbita"></span>
+        <img src="../public/simbolo-escuro.png" alt="">
+      </div>
+      <ul class="hero-numeros">
+        <li><b>6</b><span>algoritmos</span></li>
+        <li><b>4</b><span>cenários</span></li>
+        <li><b>1M</b><span>registros no máximo</span></li>
+        <li><b>clock()</b><span>medição em C</span></li>
+      </ul>
+    </section>
+
+    <!-- ================= LABORATORIO ================= -->
+    <section class="secao" id="laboratorio">
+      <div class="secao-cab">
+        <span class="selo-secao verde">Laboratório</span>
+        <h2>Gerar cenários</h2>
+        <p>O servidor executa o próprio <code>geosort</code> pelo menu: gera os dados (opções 1 a 4), salva o conjunto (7) e roda a comparação (9).</p>
+      </div>
+
+      <div class="aviso" id="lab-sem-servidor" hidden>
+        Para gerar cenários, abra o painel pelo servidor: rode <code>yarn start</code> e acesse <code>http://localhost:3000</code>.
+      </div>
+
+      <div class="card lab-controles" id="lab-controles">
+        <div class="campo">
+          <span class="rotulo-campo">Tamanho da entrada (n)</span>
+          <div class="linha-campo">
+            <div class="grupo" id="lab-tamanhos"></div>
+            <input type="number" id="lab-n" min="1" max="1000000" step="1" value="10000" aria-label="Quantidade de registros">
+          </div>
+        </div>
+        <div class="campo">
+          <span class="rotulo-campo">Cenários</span>
+          <div class="grupo" id="lab-cenarios"></div>
+        </div>
+        <button class="botao destaque grande" id="lab-gerar" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z"/></svg>
+          Gerar
+        </button>
+        <p class="lab-aviso" id="lab-aviso"></p>
+      </div>
+
+      <div class="lab-cards" id="lab-cards"></div>
+
+      <div class="grade" id="lab-detalhes" hidden>
+        <article class="card largo">
+          <header class="card-cab">
+            <div>
+              <h2>Onde as imagens foram capturadas</h2>
+              <p id="lab-mapa-sub"></p>
+            </div>
+            <div class="grupo pequeno" id="lab-mapa-cen"></div>
+          </header>
+          <div class="mapa3d-area" id="lab-mapa"></div>
+          <div class="mapa-resumo">
+            <div class="mini-stats" id="lab-stats"></div>
+            <div class="hist-bloco">
+              <h3>Cobertura de nuvens</h3>
+              <div class="histograma" id="lab-hist"></div>
+              <div class="legenda-mapa">
+                <span>céu limpo</span><span class="barra-nuvem"></span><span>nublado</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="card largo">
+          <header class="card-cab">
+            <div>
+              <h2>Antes e depois da ordenação</h2>
+              <p>Primeiros 10 registros impressos pelo programa (chave: instante de captura)</p>
+            </div>
+          </header>
+          <div class="antes-depois">
+            <div>
+              <h3><span class="tag laranja">Antes</span> como foram gerados</h3>
+              <div class="rolagem"><table id="lab-antes"></table></div>
+            </div>
+            <div>
+              <h3><span class="tag verde">Depois</span> <span id="lab-depois-alg"></span></h3>
+              <div class="rolagem"><table id="lab-depois"></table></div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= BENCHMARK ================= -->
+    <section class="secao" id="benchmark">
+      <div class="secao-cab">
+        <span class="selo-secao azul">Benchmark</span>
+        <h2>Benchmark completo</h2>
+        <p>Resultados de <code>./geosort --benchmark</code>: média de 3 execuções para cada algoritmo, cenário e tamanho.</p>
+      </div>
+
+      <!-- estado inicial: nenhum CSV carregado -->
+      <div id="vazio" class="vazio">
+        <div class="soltar" id="soltar">
+          <img src="../public/simbolo.png" alt="" class="so-claro" width="72" height="72">
+          <img src="../public/simbolo-escuro.png" alt="" class="so-escuro" width="72" height="72">
+          <h2>Arraste o arquivo de resultados aqui</h2>
+          <p>ou clique em <strong>Abrir CSV</strong>. Para gerar o arquivo:</p>
+          <code id="dica-comando">./geosort --benchmark resultados.csv</code>
+          <p class="nota">Formato esperado: <code>cenario,n,algoritmo,tempo_ms</code></p>
+          <p class="erro" id="erro" hidden></p>
+        </div>
+      </div>
+
+      <!-- painel principal -->
+      <div id="painel" hidden>
+        <div class="filtros">
+          <div class="grupo" role="tablist" aria-label="Cenário" id="cenarios"></div>
+          <div class="grupo pequeno" aria-label="Escala do eixo Y" id="escala">
+            <button type="button" data-escala="log" class="ativo">Log</button>
+            <button type="button" data-escala="linear">Linear</button>
+          </div>
+          <span class="fonte" id="fonte"></span>
+        </div>
+
+        <div class="cartoes" id="cartoes"></div>
+
+        <div class="grade">
+          <article class="card largo">
+            <header>
+              <h2>Tempo × tamanho da entrada</h2>
+              <p id="sub-linhas"></p>
+            </header>
+            <div class="legenda" id="legenda"></div>
+            <div class="grafico" id="g-linhas"></div>
+          </article>
+
+          <article class="card">
+            <header>
+              <h2>Ranking</h2>
+              <p>Tempo médio em <span id="sub-barras"></span></p>
+            </header>
+            <div class="grupo pequeno" id="tamanhos" aria-label="Tamanho n"></div>
+            <div class="grafico" id="g-barras"></div>
+          </article>
+
+          <article class="card">
+            <header>
+              <h2>Mapa de calor</h2>
+              <p>Algoritmo × cenário em <span id="sub-calor"></span> (mais escuro = mais lento)</p>
+            </header>
+            <div class="calor" id="g-calor"></div>
+          </article>
+
+          <article class="card largo">
+            <header>
+              <h2>Tabela completa</h2>
+              <p id="sub-tabela"></p>
+            </header>
+            <div class="rolagem"><table id="tabela"></table></div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- confirmacao antes de rodar o benchmark (leva alguns minutos) -->
+  <div class="modal" id="confirmar" role="dialog" aria-modal="true" aria-labelledby="confirmar-titulo" hidden>
+    <div class="modal-caixa">
+      <span class="modal-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></svg>
+      </span>
+      <h2 id="confirmar-titulo">Rodar o benchmark completo?</h2>
+      <p>O programa em C mede os 6 algoritmos em todos os cenários e tamanhos. Leva cerca de 5 minutos; você pode continuar navegando e acompanhar o progresso no canto da tela.</p>
+      <ul class="modal-numeros">
+        <li><b>4</b>cenários</li>
+        <li><b>5</b>tamanhos</li>
+        <li><b>6</b>algoritmos</li>
+        <li><b>3×</b>cada medição</li>
+      </ul>
+      <div class="modal-acoes">
+        <button class="botao fantasma" id="nao-rodar" type="button">Agora não</button>
+        <button class="botao destaque" id="sim-rodar" type="button">Rodar benchmark</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- progresso do benchmark: fica visivel em qualquer parte da pagina -->
+  <aside class="doca" id="progresso" aria-live="polite" hidden>
+    <div class="doca-topo">
+      <span class="pulso" aria-hidden="true"></span>
+      <b id="prog-titulo">Executando benchmark</b>
+      <button class="botao fantasma" id="cancelar" type="button">Cancelar</button>
+    </div>
+    <p id="prog-texto">Iniciando…</p>
+    <div class="trilha"><div class="preenchido" id="prog-barra"></div></div>
+    <p class="prog-ultima" id="prog-ultima"></p>
+    <a class="doca-link" href="#benchmark">Ver os gráficos sendo atualizados</a>
+  </aside>
+
+  <div class="dica" id="dica" role="tooltip" hidden></div>
+
+  <footer class="rodape">
+    <img class="so-claro" src="../public/marca-claro.png" alt="GeoSort" height="22">
+    <img class="so-escuro" src="../public/marca-escuro.png" alt="GeoSort" height="22">
+    <span>UNIP · Ciência da Computação · APS de Estrutura de Dados · 2026/2</span>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="mapa3d.js"></script>
+  <script src="laboratorio.js"></script>
+  <script src="intro.js"></script>
+</body>
+</html>
