@@ -1,0 +1,13 @@
+# binario compilado
+geosort
+geosort.exe
+*.o
+
+# arquivos temporarios do benchmark
+resultados.tmp.csv
+
+# node / yarn
+node_modules/
+.yarn/
+.pnp.*
+yarn-error.log

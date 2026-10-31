@@ -1,0 +1,17 @@
+{
+  "name": "geosort",
+  "version": "1.0.0",
+  "description": "Analise de desempenho de algoritmos de ordenacao com imagens de satelite da Amazonia",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "gcc -O2 -Wall -Wextra -std=c99 -o geosort geosort.c",
+    "start": "yarn build && node server.js",
+    "dev": "yarn start",
+    "menu": "yarn build && ./geosort",
+    "benchmark": "yarn build && ./geosort --benchmark resultados.csv"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
