@@ -691,6 +691,25 @@ body.ao-vivo .cartao { animation: none; }
 .m3-escala { display: flex; align-items: center; gap: 6px; }
 .m3-escala i { font-style: normal; color: #9fb8ab; }
 .m3-escala b { flex: 1; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #5fd08f, #eef6f1); }
+.m3-escala b.vetor { background: linear-gradient(90deg, #26b268, #e8952b); }
+
+/* abas de cenario e tela cheia */
+.m3-cen { display: none; position: absolute; top: 76px; left: 14px; gap: 2px; padding: 3px; }
+.m3-cen button {
+  border: 0;
+  background: transparent;
+  color: #b9d4c6;
+  font: 600 12px var(--fonte);
+  padding: 7px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.m3-cen button:hover { color: #fff; }
+.m3-cen button.ativo { background: rgba(232, 149, 43, 0.25); color: #fff; }
+.m3:fullscreen { border-radius: 0; width: 100vw; height: 100vh; }
+.m3:-webkit-full-screen { border-radius: 0; width: 100vw; height: 100vh; }
+.m3:fullscreen .m3-cen { display: flex; }
+.m3:-webkit-full-screen .m3-cen { display: flex; }
 
 .mapa-resumo { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; margin-top: 18px; align-items: end; }
 .mini-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }

@@ -231,32 +231,37 @@
       : G.fmtN(r.resumo.total) + ' imagens geradas';
     $('lab-mapa-sub').textContent = amostra + ' no cenário ' + G.nomeCenario(c).toLowerCase() +
       '. Arraste para girar e use o botão laranja para ver as capturas em ordem.';
-    desenharMapa(r);
+    desenharMapa(r, c);
     desenharStats(r);
     desenharTabela($('lab-antes'), r.antes, false);
     desenharTabela($('lab-depois'), r.depois, true);
     $('lab-depois-alg').textContent = 'ordenados por ' + (r.algoritmo_listado || 'Heap Sort');
   }
 
-  /* abas com os cenarios ja gerados */
+  function cenariosGerados() {
+    return G.CENARIOS.filter(function (x) { return lab.resultados[x.id]; });
+  }
+  function escolherCenario(id) { selecionar(id); desenharCards(); }
+
+  /* abas com os cenarios ja gerados (acima do mapa e dentro dele, na tela cheia) */
   function montarAbasMapa() {
     var g = $('lab-mapa-cen');
     g.innerHTML = '';
-    G.CENARIOS.forEach(function (x) {
-      if (!lab.resultados[x.id]) return;
+    cenariosGerados().forEach(function (x) {
       var b = document.createElement('button');
       b.type = 'button';
       b.textContent = x.nome;
       if (x.id === lab.selecionado) b.className = 'ativo';
-      b.onclick = function () { selecionar(x.id); desenharCards(); };
+      b.onclick = function () { escolherCenario(x.id); };
       g.appendChild(b);
     });
+    if (mapa3d) mapa3d.montarCenarios(cenariosGerados(), lab.selecionado, escolherCenario);
   }
 
   var mapa3d = null;
-  function desenharMapa(r) {
+  function desenharMapa(r, c) {
     if (!mapa3d) mapa3d = window.GeoSortMapa3D.criar($('lab-mapa'), { dica: G.mostrarDica, esconder: G.esconderDica });
-    mapa3d.definirDados(r.pontos, r.resumo);
+    mapa3d.definirDados(r.pontos, r.resumo, { cenario: c, cenarios: cenariosGerados(), aoEscolher: escolherCenario });
   }
 
   function desenharStats(r) {

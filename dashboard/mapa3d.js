@@ -19,6 +19,9 @@
   var ALT_PONTO = 3.4;      /* altura de um ponto com 100% de nuvens */
   var ESPESSURA = 0.8;      /* espessura do bloco de terreno */
   var DURACAO = 14000;      /* duracao da linha do tempo, em ms */
+  var DURACAO_VETOR = 4500; /* duracao da animacao de ordenacao do vetor */
+  var MAX_BARRAS = 240;     /* barras no modo vetor */
+  var ALT_VETOR = 6;        /* altura da barra mais recente */
   var VERDE = [95, 208, 143], VERDE_FORTE = [38, 178, 104], BRANCO = [238, 246, 241], LARANJA = [232, 149, 43], NEBLINA = [6, 20, 15];
   var LUZ = normalizar([-0.45, 0.85, 0.55]);
   var VISTA_INICIAL = { yaw: -0.25, pitch: 0.95, dist: 52 };
@@ -54,7 +57,9 @@
     mais: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     menos: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
     tocar: '<svg viewBox="0 0 24 24"><path d="M7 4l12 8-12 8z"/></svg>',
-    pausar: '<svg viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg>'
+    pausar: '<svg viewBox="0 0 24 24"><path d="M7 4h4v16H7zM13 4h4v16h-4z"/></svg>',
+    tela: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    sairTela: '<svg viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
   };
 
   /* ---------- Utilitarios ---------- */
@@ -175,15 +180,18 @@
     raiz.innerHTML =
       '<canvas role="img" aria-label="Mapa 3D da região amazônica com as imagens de satélite geradas"></canvas>' +
       '<div class="m3-leitura" aria-live="off"><b class="m3-data"></b><span class="m3-conta"></span></div>' +
+      '<div class="m3-cen m3-vidro" role="group" aria-label="Cenário"></div>' +
       '<div class="m3-ctrl">' +
         '<div class="m3-seg m3-vidro" role="group" aria-label="Forma de exibir as imagens">' +
           '<button type="button" data-modo="colunas" class="ativo" aria-pressed="true">Colunas</button>' +
           '<button type="button" data-modo="pontos" aria-pressed="false">Pontos</button>' +
+          '<button type="button" data-modo="vetor" aria-pressed="false">Vetor</button>' +
         '</div>' +
         '<button type="button" class="m3-ico m3-vidro" data-acao="girar" aria-pressed="' + this.girar + '" aria-label="Girar automaticamente" title="Girar automaticamente">' + ICONES.girar + '</button>' +
         '<button type="button" class="m3-ico m3-vidro" data-acao="topo" aria-pressed="false" aria-label="Ver de cima" title="Ver de cima">' + ICONES.topo + '</button>' +
         '<button type="button" class="m3-ico m3-vidro" data-acao="mais" aria-label="Aproximar" title="Aproximar">' + ICONES.mais + '</button>' +
         '<button type="button" class="m3-ico m3-vidro" data-acao="menos" aria-label="Afastar" title="Afastar">' + ICONES.menos + '</button>' +
+        '<button type="button" class="m3-ico m3-vidro" data-acao="tela" aria-pressed="false" aria-label="Tela cheia" title="Tela cheia">' + ICONES.tela + '</button>' +
       '</div>' +
       '<div class="m3-base m3-vidro">' +
         '<button type="button" class="m3-play"></button>' +
@@ -210,7 +218,10 @@
       escMin: raiz.querySelector('.m3-min'),
       escMax: raiz.querySelector('.m3-max'),
       girar: raiz.querySelector('[data-acao=girar]'),
-      topo: raiz.querySelector('[data-acao=topo]')
+      topo: raiz.querySelector('[data-acao=topo]'),
+      tela: raiz.querySelector('[data-acao=tela]'),
+      cen: raiz.querySelector('.m3-cen'),
+      escBarra: raiz.querySelector('.m3-escala b')
     };
 
     /* controles */
@@ -228,6 +239,22 @@
       if (!deCima && self.girar) self.el.girar.click();
     };
     raiz.querySelector('[data-acao=mais]').onclick = function () { self.zoom(0.8); };
+    if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) this.el.tela.hidden = true;
+    this.el.tela.onclick = function () {
+      if (self.emTelaCheia()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else (raiz.requestFullscreen || raiz.webkitRequestFullscreen).call(raiz);
+    };
+    var aoMudarTela = function () {
+      var cheia = self.emTelaCheia(), b = self.el.tela;
+      b.innerHTML = cheia ? ICONES.sairTela : ICONES.tela;
+      b.title = cheia ? 'Sair da tela cheia' : 'Tela cheia';
+      b.setAttribute('aria-label', b.title);
+      b.setAttribute('aria-pressed', String(cheia));
+      self.redimensionar();
+    };
+    document.addEventListener('fullscreenchange', aoMudarTela);
+    document.addEventListener('webkitfullscreenchange', aoMudarTela);
+    window.addEventListener('resize', function () { if (self.emTelaCheia()) self.redimensionar(); });
     raiz.querySelector('[data-acao=menos]').onclick = function () { self.zoom(1.25); };
     this.el.play.onclick = function () { self.alternarLinha(); };
     this.el.range.addEventListener('input', function () {
@@ -295,9 +322,14 @@
     this.atualizarBotao();
   };
 
+  Mapa.prototype.emTelaCheia = function () {
+    return (document.fullscreenElement || document.webkitFullscreenElement) === this.raiz;
+  };
+
   Mapa.prototype.redimensionar = function () {
-    var W = this.cont.clientWidth || 600;
-    var H = Math.round(limitar(W < 520 ? W * 1.45 : W * 0.58, 380, 620));
+    var cheia = this.emTelaCheia();
+    var W = (cheia ? this.raiz.clientWidth : this.cont.clientWidth) || 600;
+    var H = cheia ? window.innerHeight : Math.round(limitar(W < 520 ? W * 1.45 : W * 0.58, 380, 620));
     var dpr = Math.min(2, window.devicePixelRatio || 1);
     if (W === this.W && H === this.H && dpr === this.dpr) return;
     this.W = W;
@@ -325,12 +357,47 @@
     this.atualizarLegenda();
     this.hover = null;
     this.t0 = performance.now() - (REDUZIR ? 5000 : 300);
+    this.reiniciarLinha();
     this.pedirQuadro();
+  };
+
+  /* no modo vetor a linha do tempo vai de "antes" (0) a "depois" (1) da ordenacao */
+  Mapa.prototype.reiniciarLinha = function () {
+    var vetor = this.modo === 'vetor', d = this.datas || ['', ''];
+    this.linha = { ativa: false, tocando: false, prog: 1, inicio: 0, dur: DURACAO };
+    this.el.range.value = vetor ? 0 : 1000;
+    this.el.ini.textContent = vetor ? 'antes' : d[0];
+    this.el.fim.textContent = vetor ? 'depois' : d[1];
+    this.textos = {};
+    this.atualizarBotao();
+  };
+
+  /* abas de cenario dentro do mapa (aparecem na tela cheia) */
+  Mapa.prototype.montarCenarios = function (lista, atual, aoEscolher) {
+    var cont = this.el.cen;
+    cont.innerHTML = '';
+    cont.hidden = lista.length < 2;
+    lista.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = c.nome;
+      b.className = c.id === atual ? 'ativo' : '';
+      b.setAttribute('aria-pressed', String(c.id === atual));
+      b.onclick = function () { if (aoEscolher) aoEscolher(c.id); };
+      cont.appendChild(b);
+    });
   };
 
   /* nas colunas a cor vai da menor a maior media observada */
   Mapa.prototype.atualizarLegenda = function () {
-    var colunas = this.modo === 'colunas';
+    var colunas = this.modo === 'colunas', vetor = this.modo === 'vetor';
+    this.el.escBarra.classList.toggle('vetor', vetor);
+    if (vetor) {
+      this.el.leg.textContent = 'Cada barra é uma imagem, na posição em que está no vetor. Altura: data da captura. Cor: distância da posição correta.';
+      this.el.escMin.textContent = 'no lugar';
+      this.el.escMax.textContent = 'fora do lugar';
+      return;
+    }
     this.el.leg.textContent = colunas
       ? 'Altura: quantidade de imagens na região. Cor: nuvens em média.'
       : 'Cada ponto é uma imagem. Altura e cor: cobertura de nuvens.';
@@ -356,7 +423,21 @@
 
   /* ---------- Dados ---------- */
   /* pontos: [id, timestamp, lat, lon, nuvens] vindos do servidor */
-  Mapa.prototype.definirDados = function (pontos, resumo) {
+  /* pontos chegam na ordem do vetor gerado (antes de ordenar) */
+  Mapa.prototype.definirDados = function (pontos, resumo, extra) {
+    extra = extra || {};
+    var m = Math.min(MAX_BARRAS, pontos.length), passoV = pontos.length / (m || 1), barras = [];
+    for (var b = 0; b < m; b++) {
+      var pv = pontos[Math.floor(b * passoV)];
+      barras.push({ i: b, id: pv[0], ts: pv[1], nuv: pv[4], rank: 0 });
+    }
+    var porData = barras.slice().sort(function (x, y) { return x.ts - y.ts || x.i - y.i; });
+    porData.forEach(function (x, r) { x.rank = r; });
+    var fora = 0;
+    for (b = 1; b < m; b++) if (barras[b - 1].ts > barras[b].ts) fora++;
+    this.vetor = { barras: barras, fora: fora, tsMin: m ? porData[0].ts : 0, tsMax: m ? porData[m - 1].ts : 1 };
+    this.montarCenarios(extra.cenarios || [], extra.cenario, extra.aoEscolher);
+
     var ordenados = pontos.slice().sort(function (a, b) { return a[1] - b[1]; });
     var indice = {}, cols = [];
     this.pontos = ordenados.map(function (p) {
@@ -390,16 +471,13 @@
     this.faixa = maior > menor ? [menor, maior] : [0, 100];
     this.atualizarLegenda();
     this.resumo = resumo;
-    this.linha = { ativa: false, tocando: false, prog: 1, inicio: 0 };
     this.hover = null;
     this.t0 = performance.now() - (REDUZIR ? 5000 : 0);
-    this.textos = {};
 
     var n = this.pontos.length;
-    this.el.ini.textContent = n ? fmtData(this.pontos[0].ts, { day: 'numeric', month: 'short' }) : '';
-    this.el.fim.textContent = n ? fmtData(this.pontos[n - 1].ts, { day: 'numeric', month: 'short' }) : '';
-    this.el.range.value = 1000;
-    this.atualizarBotao();
+    this.datas = n ? [fmtData(this.pontos[0].ts, { day: 'numeric', month: 'short' }),
+      fmtData(this.pontos[n - 1].ts, { day: 'numeric', month: 'short' })] : ['', ''];
+    this.reiniciarLinha();
     this.pedirQuadro();
   };
 
@@ -412,7 +490,8 @@
       if (!L.ativa || L.prog >= 1) L.prog = 0;
       L.ativa = true;
       L.tocando = true;
-      L.inicio = performance.now() - L.prog * DURACAO;
+      L.dur = this.modo === 'vetor' ? DURACAO_VETOR : DURACAO;
+      L.inicio = performance.now() - L.prog * L.dur;
     }
     this.atualizarBotao();
     this.pedirQuadro();
@@ -420,7 +499,8 @@
 
   Mapa.prototype.atualizarBotao = function () {
     var L = this.linha, b = this.el.play;
-    var rotulo = L.tocando ? 'Pausar' : (L.ativa && L.prog < 1 ? 'Continuar' : 'Ver capturas em ordem');
+    var fim = this.modo === 'vetor' ? (L.ativa ? 'Ordenar de novo' : 'Ordenar o vetor') : 'Ver capturas em ordem';
+    var rotulo = L.tocando ? 'Pausar' : (L.ativa && L.prog < 1 ? 'Continuar' : fim);
     b.innerHTML = (L.tocando ? ICONES.pausar : ICONES.tocar) + '<span>' + rotulo + '</span>';
     b.setAttribute('aria-label', L.tocando ? 'Pausar a linha do tempo' : 'Reproduzir as capturas em ordem cronológica');
   };
@@ -433,6 +513,21 @@
 
   Mapa.prototype.atualizarLeitura = function (k) {
     var n = this.pontos.length, L = this.linha;
+    if (this.modo === 'vetor') {
+      var v = this.vetor, m = v ? v.barras.length : 0, s = L.ativa ? L.prog : 0;
+      if (m < 2) {
+        this.escrever('data', this.el.data, 'Sem imagens');
+        this.escrever('conta', this.el.conta, '');
+        return;
+      }
+      this.escrever('data', this.el.data, s <= 0 ? 'Vetor antes da ordenação'
+        : (s >= 1 ? 'Vetor ordenado' : 'Ordenando… ' + Math.round(s * 100) + '%'));
+      this.escrever('conta', this.el.conta, s >= 1
+        ? 'Os ' + fmtN(m - 1) + ' pares vizinhos estão em ordem'
+        : fmtN(v.fora) + ' de ' + fmtN(m - 1) + ' pares vizinhos fora de ordem (' + Math.round(100 * v.fora / (m - 1)) + '%)');
+      if (L.tocando) this.el.range.value = Math.round(L.prog * 1000);
+      return;
+    }
     if (!n) {
       this.escrever('data', this.el.data, 'Sem imagens');
       this.escrever('conta', this.el.conta, '');
@@ -484,7 +579,7 @@
 
     var L = this.linha;
     if (L.tocando) {
-      L.prog = Math.min(1, (agora - L.inicio) / DURACAO);
+      L.prog = Math.min(1, (agora - L.inicio) / (L.dur || DURACAO));
       if (L.prog >= 1) { L.tocando = false; this.atualizarBotao(); }
       animando = true;
     }
@@ -567,6 +662,15 @@
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+
+    /* modo vetor: so as barras sobre o bloco */
+    if (this.modo === 'vetor') {
+      this.alvosCid = [];
+      this.alvosPts = null;
+      this.desenharVetor(P, neblina, agora);
+      this.atualizarLeitura(0);
+      return;
+    }
 
     /* grade de 5 graus e equador */
     ctx.lineWidth = 1;
@@ -741,6 +845,75 @@
     this.atualizarLeitura(k);
   };
 
+  /* vetor como barras: posicao no vetor, altura = data, cor = distancia do lugar certo */
+  Mapa.prototype.desenharVetor = function (P, neblina, agora) {
+    var ctx = this.ctx, v = this.vetor, L = this.linha, self = this, j;
+    this.alvosCol = [];
+    if (!v || !v.barras.length) return;
+    var m = v.barras.length;
+    var s = suave(L.ativa ? L.prog : 0);
+    var cresce = REDUZIR ? 1 : suave(limitar((agora - this.t0) / 900, 0, 1));
+    var larg = (X1 - X0 - 1) / m, hx = larg * 0.36, hz = 0.7;
+    var faixa = (v.tsMax - v.tsMin) || 1;
+    var hover = this.hover && this.hover.tipo === 'vet' ? this.hover.c : null;
+    var xDe = function (pos) { return X0 + 0.5 + (pos + 0.5) * larg; };
+
+    /* eixo da posicao e escala de datas */
+    ctx.font = '600 11px ' + FONTE;
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillStyle = 'rgba(214, 236, 224, 0.85)';
+    ctx.lineWidth = 1;
+    var a = P(X0 + 0.5, 0.02, hz + 1), b = P(X1 - 0.5, 0.02, hz + 1), c = P(0, 0.02, hz + 1);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.fillText('início do vetor', a[0], a[1] + 14);
+    ctx.textAlign = 'right'; ctx.fillText('fim do vetor', b[0], b[1] + 14);
+    ctx.textAlign = 'center'; ctx.fillText('posição no vetor →', c[0], c[1] + 14);
+    var e0 = P(X0 - 0.2, 0.3, 0), e1 = P(X0 - 0.2, 0.3 + ALT_VETOR, 0);
+    ctx.beginPath(); ctx.moveTo(e0[0], e0[1]); ctx.lineTo(e1[0], e1[1]); ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtData(v.tsMin, { day: 'numeric', month: 'short' }), e0[0] - 6, e0[1]);
+    ctx.fillText(fmtData(v.tsMax, { day: 'numeric', month: 'short' }), e1[0] - 6, e1[1]);
+    ctx.fillText('data ↑', e1[0] - 6, e1[1] - 16);
+
+    var itens = v.barras.map(function (bar) {
+      var pos = bar.i + (bar.rank - bar.i) * s;
+      var h = (0.3 + ALT_VETOR * (bar.ts - v.tsMin) / faixa) * cresce;
+      var x = xDe(pos);
+      return { bar: bar, x: x, h: h, zv: P(x, h / 2, 0)[2] };
+    }).sort(function (p, q) { return q.zv - p.zv; });
+
+    var normais = [[0, 1], [-1, 0], [0, -1], [1, 0]];
+    itens.forEach(function (it) {
+      var bar = it.bar, x0 = it.x - hx, x1 = it.x + hx;
+      var cantos = [[x1, hz], [x0, hz], [x0, -hz], [x1, -hz]];
+      var base = cantos.map(function (q) { return P(q[0], 0, q[1]); });
+      var topo = cantos.map(function (q) { return P(q[0], it.h, q[1]); });
+      var desvio = Math.abs(bar.rank - bar.i) / Math.max(1, m - 1);
+      var cor = misturar(misturar(VERDE_FORTE, LARANJA, limitar(desvio * 4, 0, 1)), VERDE_FORTE, s);
+      var nb = neblina(it.zv), polis = [];
+      for (j = 0; j < 4; j++) {
+        var j2 = (j + 1) % 4, face = [base[j], base[j2], topo[j2], topo[j]];
+        if (area(face) <= 0) continue;
+        var luz = Math.max(0, normais[j][0] * LUZ[0] + normais[j][1] * LUZ[2]);
+        ctx.fillStyle = tom(cor, 0.42 + 0.4 * luz, nb);
+        poligono(ctx, face);
+        ctx.fill();
+        polis.push(face);
+      }
+      ctx.fillStyle = tom(cor, 1, nb);
+      poligono(ctx, topo);
+      ctx.fill();
+      polis.push(topo);
+      if (bar === hover) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        polis.forEach(function (p) { poligono(ctx, p); ctx.stroke(); });
+      }
+      self.alvosCol.push({ c: bar, polis: polis, tipo: 'vet', cor: cor });
+    });
+  };
+
   Mapa.prototype.desenharColunas = function (P, neblina, k, janela, crescer, reproduzindo) {
     var ctx = this.ctx, cols = this.colunas, pts = this.pontos, i, j;
     for (i = 0; i < cols.length; i++) { cols[i].n = 0; cols[i].soma = 0; cols[i].ultimo = -1; }
@@ -866,7 +1039,7 @@
     for (i = this.alvosCol.length - 1; i >= 0 && !achado; i--) {
       var alvo = this.alvosCol[i];
       for (var j = 0; j < alvo.polis.length; j++) {
-        if (dentro(x, y, alvo.polis[j])) { achado = { tipo: 'col', c: alvo.c }; break; }
+        if (dentro(x, y, alvo.polis[j])) { achado = { tipo: alvo.tipo || 'col', c: alvo.c, cor: alvo.cor }; break; }
       }
     }
     if (!achado && this.alvosPts) {
@@ -887,6 +1060,14 @@
         this.op.dica(e, achado.c.nome, [
           ['Latitude', fmtGrau(achado.c.lat, 'N', 'S')],
           ['Longitude', fmtGrau(achado.c.lon, 'L', 'O')]
+        ]);
+      } else if (achado.tipo === 'vet') {
+        var bar = achado.c, total = this.vetor.barras.length;
+        this.op.dica(e, 'Imagem #' + bar.id, [
+          ['Captura', fmtData(bar.ts, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' UTC'],
+          ['Posição no vetor', fmtN(bar.i + 1) + 'ª de ' + fmtN(total)],
+          ['Posição depois de ordenar', fmtN(bar.rank + 1) + 'ª'],
+          ['Distância do lugar certo', fmtN(Math.abs(bar.rank - bar.i)) + ' posições', css(achado.cor)]
         ]);
       } else if (achado.tipo === 'col') {
         var cl = achado.c, media = cl.soma / cl.n;
